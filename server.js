@@ -1,13 +1,21 @@
-require("dotenv").config();
-const express = require("express");
-const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
-const requestIp = require("request-ip");
-const ethers = require("ethers");
-const User = require("./models/User"); // Import User model
+require("dotenv").config(); 
+const cors = require('cors');
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const requestIp = require('request-ip');
+const ethers = require('ethers');
+const User = require('./models/User'); // Import User model
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Enable CORS for requests from localhost
+app.use(cors({
+  origin: 'https://blockchain-login-prototype.onrender.com', // Allow only localhost:5173
+  methods: 'GET,POST',
+  allowedHeaders: 'Content-Type,Authorization'
+}));
 
 // Middleware
 app.use(bodyParser.json());
@@ -24,30 +32,19 @@ app.post("/login", async (req, res) => {
         const { publicKey, signedMessage } = req.body;
         const message = "Login to our app";
 
-        // Verify the signature
+        // Verify Signature
         const recoveredAddress = ethers.verifyMessage(message, signedMessage);
-        if (recoveredAddress !== publicKey) {
+        if (recoveredAddress.toLowerCase() !== publicKey.toLowerCase()) {
             return res.status(401).json({ error: "Invalid signature" });
         }
 
-        // Extract User IP Address & Device Info
+        // Get IP & Device Info
         let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.connection.remoteAddress || "Unknown";
-
-        // Handle IPv6-mapped IPv4 (e.g., "::ffff:192.168.x.x" → "192.168.x.x")
-        if (ip.startsWith("::ffff:")) {
-            ip = ip.replace("::ffff:", "");
-        }
-
+        if (ip.includes(",")) ip = ip.split(",")[0].trim(); // Handle multiple IPs
         const deviceInfo = req.headers["user-agent"] || "Unknown";
 
-        // Create a new User document and save it to MongoDB
-        const newUser = new User({
-            publicKey,
-            ip,
-            deviceInfo
-        });
-
-        // Save the user to MongoDB
+        // Store in MongoDB
+        const newUser = new User({ publicKey, ip, deviceInfo });
         await newUser.save();
 
         res.json({ success: true, message: "Login successful!", ip, deviceInfo });
@@ -57,12 +54,6 @@ app.post("/login", async (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
-
-
-app.get("/", (req, res) => {
-    res.send("✅ Blockchain Login Backend is Running!");
-});
-
 
 // Start Server
 app.listen(PORT, () => {
