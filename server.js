@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config(); // Load environment variables from .env file
 const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
@@ -16,13 +16,14 @@ const corsOptions = {
         ? 'https://blockchain-login-prototype.onrender.com'  // Allow only your frontend URL in production
         : 'http://localhost:5173',  // Allow localhost for development
     methods: 'GET,POST',
-    allowedHeaders: 'Content-Type,Authorization'
+    allowedHeaders: 'Content-Type,Authorization',
+    credentials: true  // Allow credentials (if needed)
 };
 
 // Middleware
 app.use(cors(corsOptions));  // Use CORS for handling cross-origin requests
-app.use(bodyParser.json());
-app.use(requestIp.mw());  // Capture IP addresses
+app.use(bodyParser.json());  // Parse incoming JSON requests
+app.use(requestIp.mw());  // Capture IP addresses from requests
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
