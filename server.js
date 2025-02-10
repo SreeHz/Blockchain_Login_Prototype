@@ -3,9 +3,9 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const requestIp = require("request-ip");
-const ethers = require("ethers");
 const cors = require("cors");
 const User = require("./models/User"); // Import User model
+const { generateKeys, signMessage, verifyMessage } = require("./wallet/keyManager"); // Custom wallet system
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,45 +30,84 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
     .then(() => console.log("✅ Connected to MongoDB Atlas"))
     .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// Login API Endpoint
+// 🚀 **Endpoint to Generate & Store User Wallet**
+app.post("/generate-wallet", async (req, res) => {
+    try {
+        const { publicKey, keyId } = generateKeys(); // Create new wallet keys
+
+        // Save the public key and keyId in the database (we NEVER store private keys)
+        const newUser = new User({
+            publicKey,
+            keyId,  // Store key identifier
+            ip: "Not logged in yet", 
+            deviceInfo: "Not logged in yet"
+        });
+
+        await newUser.save();
+
+        res.json({ success: true, publicKey, keyId }); // KeyId helps backend fetch the private key (not exposed to users)
+    } catch (error) {
+        console.error("Error generating wallet:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// 🚀 **Login API Endpoint using our Custom Wallet**
 app.post("/login", async (req, res) => {
     try {
         const { publicKey, signedMessage } = req.body;
         const message = "Login to our app";
 
-        // Verify the signature
-        const recoveredAddress = ethers.verifyMessage(message, signedMessage);
-        if (recoveredAddress.toLowerCase() !== publicKey.toLowerCase()) {
+        // Fetch user data from database
+        const user = await User.findOne({ publicKey });
+        if (!user) {
+            return res.status(404).json({ error: "Public key not registered" });
+        }
+
+        // Verify the signed message using our own system
+        const isValid = verifyMessage(user.publicKey, message, signedMessage);
+        if (!isValid) {
             return res.status(401).json({ error: "Invalid signature" });
         }
 
         // Extract User IP Address & Device Info
         let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.connection.remoteAddress || "Unknown";
-
-        // Handle IPv6-mapped IPv4 (e.g., "::ffff:192.168.x.x" → "192.168.x.x")
         if (ip.startsWith("::ffff:")) {
             ip = ip.replace("::ffff:", "");
         }
 
         const deviceInfo = req.headers["user-agent"] || "Unknown";
 
-        // Create a new User document and save it to MongoDB
-        const newUser = new User({
-            publicKey,
-            ip,
-            deviceInfo
-        });
-
-        // Save the user to MongoDB
-        await newUser.save();
+        // Update user's last login IP & device info
+        await User.updateOne({ publicKey }, { ip, deviceInfo, lastLogin: new Date() });
 
         res.json({ success: true, message: "Login successful!", ip, deviceInfo });
 
     } catch (error) {
-        console.error(error);
+        console.error("Login error:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
+// 🚀 **Sign Message using Server-Side Private Key**
+app.post("/sign-message", async (req, res) => {
+    try {
+        const { keyId, message } = req.body;
+        
+        if (!keyId || !message) {
+            return res.status(400).json({ error: "Missing keyId or message" });
+        }
+
+        // Sign the message using the private key stored on the server
+        const signedMessage = signMessage(keyId, message);
+
+        res.json({ success: true, signedMessage });
+    } catch (error) {
+        console.error("Signing error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 
 // Test Route to verify server is running
 app.get("/", (req, res) => {

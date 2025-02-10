@@ -1,11 +1,11 @@
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
-    publicKey: { type: String, required: true },  // Public key of the user (blockchain key)
-    ip: { type: String, required: true },  // User's IP address
-    deviceInfo: { type: String },  // Browser and OS information
-    timestamp: { type: Date, default: Date.now }  // Store login timestamp automatically
+    publicKey: { type: String, required: true, unique: true },  // User's public key
+    keyId: { type: String, required: true, unique: true },  // Reference to private key (stored on server)
+    ip: { type: String, default: "Not logged in yet" },  // Last login IP address
+    deviceInfo: { type: String, default: "Not logged in yet" },  // Last login device info
+    lastLogin: { type: Date, default: Date.now }  // Timestamp of last login
 });
 
-// Export User model
 module.exports = mongoose.model("User", UserSchema);
