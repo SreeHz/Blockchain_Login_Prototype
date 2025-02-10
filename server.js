@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 // CORS setup for production (Render) and development (localhost)
 const corsOptions = {
     origin: process.env.NODE_ENV === 'production' 
-        ? ['https://blockchain-login-prototype.onrender.com', 'https://your-frontend-domain.com']
+        ? ['https://blockchain-login-prototype.onrender.com', 'https://frontend-login-prototype.vercel.app']
         : 'http://localhost:5173',  
     methods: 'GET,POST',
     allowedHeaders: 'Content-Type,Authorization',
