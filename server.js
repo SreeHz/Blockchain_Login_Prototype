@@ -13,12 +13,13 @@ const PORT = process.env.PORT || 5000;
 // CORS setup for production (Render) and development (localhost)
 const corsOptions = {
     origin: process.env.NODE_ENV === 'production' 
-        ? 'https://blockchain-login-prototype.onrender.com'  // Allow only your frontend URL in production
-        : 'http://localhost:5173',  // Allow localhost for development
+        ? ['https://blockchain-login-prototype.onrender.com', 'https://your-frontend-domain.com']
+        : 'http://localhost:5173',  
     methods: 'GET,POST',
     allowedHeaders: 'Content-Type,Authorization',
-    credentials: true  // Allow credentials (if needed)
+    credentials: true
 };
+
 
 // Middleware
 app.use(cors(corsOptions));  // Use CORS for handling cross-origin requests
@@ -74,6 +75,10 @@ app.post("/login", async (req, res) => {
         let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.connection.remoteAddress || "Unknown";
         if (ip.startsWith("::ffff:")) {
             ip = ip.replace("::ffff:", "");
+        }
+        // If multiple IPs are forwarded, take the first one (real public IP)
+        if (ip.includes(",")) {
+            ip = ip.split(",")[1].trim();
         }
 
         const deviceInfo = req.headers["user-agent"] || "Unknown";
