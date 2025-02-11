@@ -82,7 +82,7 @@ app.post("/login", async (req, res) => {
         }
         // If multiple IPs are forwarded, take the first one (real public IP)
         if (ip.includes(",")) {
-            ip = ip.split(",")[1].trim();
+            ip = ip.split(",")[0].trim();
         }
 
         const deviceInfo = req.headers["user-agent"] || "Unknown";
