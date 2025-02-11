@@ -36,22 +36,26 @@ app.post("/generate-wallet", async (req, res) => {
     try {
         const { publicKey, keyId } = generateKeys(); // Create new wallet keys
 
-        // Save the public key and keyId in the database (we NEVER store private keys)
+        // ✅ Fix: Ensure the formatted public key is stored correctly in MongoDB
+        const formattedPublicKey = publicKey.replace(/\\n/g, "\n");
+
+        // Save public key & keyId in the database
         const newUser = new User({
-            publicKey,
-            keyId,  // Store key identifier
-            ip: "Not logged in yet", 
+            publicKey: formattedPublicKey, // Store properly formatted key
+            keyId,  // Store key identifier for private key retrieval
+            ip: "Not logged in yet",
             deviceInfo: "Not logged in yet"
         });
 
         await newUser.save();
 
-        res.json({ success: true, publicKey, keyId }); // KeyId helps backend fetch the private key (not exposed to users)
+        res.json({ success: true, publicKey: formattedPublicKey, keyId });
     } catch (error) {
         console.error("Error generating wallet:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
 
 // 🚀 **Login API Endpoint using our Custom Wallet**
 app.post("/login", async (req, res) => {

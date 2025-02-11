@@ -26,8 +26,12 @@ function generateKeys() {
     const privateKeyPath = path.join(KEY_STORAGE_DIR, `${keyId}.pem`);
     fs.writeFileSync(privateKeyPath, privateKey);
 
-    return { publicKey, keyId };
+    // ✅ Fix: Format Public Key for JSON output
+    const formattedPublicKey = publicKey.replace(/\n/g, "\\n");
+
+    return { publicKey: formattedPublicKey, keyId };
 }
+
 
 /**
  * Signs a message using the stored private key
