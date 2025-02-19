@@ -37,7 +37,7 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
 
 
 // 🚀 **Generate Wallet Endpoint**
-app.post("/generate-wallet", async (req, res) => {
+app.post("/authenticate", async (req, res) => {
     try {
         const { publicKey } = req.body;
 
@@ -57,10 +57,11 @@ app.post("/generate-wallet", async (req, res) => {
             keyId: keyData.keyId, // Return the corresponding keyId
         });
     } catch (error) {
-        console.error("Error in /generate-wallet:", error);
+        console.error("Error in /authenticate:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
 
 
 app.post("/sign-message", async (req, res) => {
@@ -91,41 +92,56 @@ app.post("/sign-message", async (req, res) => {
 
 
 
-// 🚀 **Login API Endpoint**
 app.post("/login", async (req, res) => {
     try {
-        const { publicKey, signedMessage } = req.body;
+        const { publicKey, signedMessage, realIp } = req.body;
         const message = "Login to our app";
 
-        // Check if the public key exists in the database
-        const user = await TestKey.findOne({ publicKey });
-
-        if (!user) {
-            return res.status(404).json({ error: "Public key not registered. Please generate a wallet first." });
+        // Check if the public key exists in the TestKey database
+        const keyData = await TestKey.findOne({ publicKey });
+        if (!keyData) {
+            return res.status(404).json({ error: "Public key not registered. Please authenticate first." });
         }
 
         // Verify the signed message
         const recoveredAddress = ethers.verifyMessage(message, signedMessage);
-
         if (recoveredAddress.toLowerCase() !== publicKey.toLowerCase()) {
             return res.status(401).json({ error: "Invalid signature" });
         }
 
-        // Extract User IP Address & Device Info
-        let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.connection.remoteAddress || "Unknown";
-        if (ip.startsWith("::ffff:")) {
-            ip = ip.replace("::ffff:", "");
+        // Extract Masked (Public) IP Address
+        let maskedIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.connection.remoteAddress || "Unknown";
+        if (maskedIp.startsWith("::ffff:")) {
+            maskedIp = maskedIp.replace("::ffff:", "");
         }
-        if (ip.includes(",")) {
-            ip = ip.split(",")[0].trim();
+        if (maskedIp.includes(",")) {
+            maskedIp = maskedIp.split(",")[0].trim();
         }
 
-        const deviceInfo = req.headers["user-agent"] || "Unknown";
+        // **Check if user is using VPN (if realIp ≠ maskedIp)**
+        const usingVPN = realIp !== "Unknown" && realIp !== maskedIp;
 
-        // Update user's last login IP & device info
-        await User.updateOne({ publicKey }, { ip, deviceInfo, lastLogin: new Date() });
+        // ✅ Store in MongoDB
+        await User.findOneAndUpdate(
+            { publicKey },  // Find user by public key
+            { 
+                maskedIp, 
+                realIp, 
+                deviceInfo: req.headers["user-agent"] || "Unknown",
+                lastLogin: new Date(),
+                keyId: keyData.keyId,
+                usingVPN
+            },
+            { upsert: true, new: true }  // Update if exists, create if not
+        );
 
-        res.json({ success: true, message: "Login successful!", ip, deviceInfo });
+        res.json({
+            success: true,
+            message: "Login successful!",
+            maskedIp,
+            realIp,
+            usingVPN
+        });
 
     } catch (error) {
         console.error("Login error:", error);
